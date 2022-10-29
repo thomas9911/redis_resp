@@ -1,5 +1,3 @@
-use std::path::Iter;
-
 /// In RESP, the first byte determines the data type:
 /// For Simple Strings, the first byte of the reply is "+"
 /// For Errors, the first byte of the reply is "-"
@@ -10,8 +8,14 @@ use std::path::Iter;
 ///
 ///
 
-type ResultXd = Result<RespType, ()>;
-type ResultXp<'a> = Result<RespTypeScan<'a>, ()>;
+type ResultXd = Result<RespType, RespError>;
+type ResultXp<'a> = Result<RespTypeScan<'a>, RespError>;
+
+#[derive(Debug, PartialEq)]
+pub enum RespError {
+    None,
+    Other,
+}
 
 #[derive(Debug, PartialEq)]
 pub enum RespType {
@@ -25,12 +29,12 @@ pub enum RespType {
 impl RespType {
     pub fn parse(input: &[u8]) -> ResultXd {
         if input.len() == 0 {
-            return Err(());
+            return Err(RespError::Other);
         }
 
         match input[0] {
             b'+' => parse_simple_string(&input[1..]),
-            _ => return Err(()),
+            _ => return Err(RespError::Other),
         }
     }
 }
@@ -52,7 +56,7 @@ fn parse_simple_string(input: &[u8]) -> ResultXd {
     if closed {
         Ok(RespType::SimpleString(data))
     } else {
-        Err(())
+        Err(RespError::Other)
     }
 }
 
@@ -62,6 +66,9 @@ pub enum RespTypeScan<'a> {
     Error(&'a [u8]),
     Integer(i64),
     BulkString(&'a [u8]),
+    NullString,
+    NullArray,
+    ArrayStart(usize),
 }
 
 impl<'a> RespTypeScan<'a> {
@@ -69,7 +76,7 @@ impl<'a> RespTypeScan<'a> {
         RespTypeIter::new(data)
     }
 
-    fn get_line_range(input: &[u8], start_at: usize) -> Result<(usize, usize), ()> {
+    fn get_line_range(input: &[u8], start_at: usize) -> Result<(usize, usize), RespError> {
         let mut iter = input[start_at..].iter().peekable();
         let mut closed = false;
         let mut end = start_at;
@@ -87,16 +94,27 @@ impl<'a> RespTypeScan<'a> {
         if closed {
             Ok((start_at, end))
         } else {
-            Err(())
+            Err(RespError::Other)
         }
+    }
+
+    fn get_line_range_as_integer(
+        input: &[u8],
+        start_at: usize,
+    ) -> Result<(usize, usize, i64), RespError> {
+        let (start, end) = Self::get_line_range(input, start_at)?;
+        let s = std::str::from_utf8(&input[start..end - 2]).map_err(|_| RespError::Other)?;
+        let integer = s.parse().map_err(|_| RespError::Other)?;
+        Ok((start, end, integer))
     }
 }
 
+#[derive(Debug)]
 pub struct RespTypeIter<'a> {
     data: &'a [u8],
     closed: bool,
     scan_start: usize,
-    is_list: bool,
+    length: usize,
 }
 
 impl<'a> RespTypeIter<'a> {
@@ -105,7 +123,7 @@ impl<'a> RespTypeIter<'a> {
             data,
             closed: false,
             scan_start: 0,
-            is_list: false,
+            length: 1,
         }
     }
 
@@ -114,25 +132,59 @@ impl<'a> RespTypeIter<'a> {
             b'+' => {
                 let (start, end) = RespTypeScan::get_line_range(self.data, self.scan_start + 1)?;
                 self.scan_start = end + 1;
-                self.closed = true;
                 RespTypeScan::SimpleString(&self.data[start..end - 2])
             }
             b'-' => {
                 let (start, end) = RespTypeScan::get_line_range(self.data, self.scan_start + 1)?;
                 self.scan_start = end + 1;
-                self.closed = true;
                 RespTypeScan::Error(&self.data[start..end - 2])
             }
             b':' => {
-                let (start, end) = RespTypeScan::get_line_range(self.data, self.scan_start + 1)?;
-                self.scan_start = end + 1;
-                self.closed = true;
-                let s = std::str::from_utf8(&self.data[start..end - 2]).map_err(|_| ())?;
-                RespTypeScan::Integer(s.parse().map_err(|_| ())?)
+                let (_start, end, integer) =
+                    RespTypeScan::get_line_range_as_integer(self.data, self.scan_start + 1)?;
+                self.scan_start = end;
+                RespTypeScan::Integer(integer)
             }
-            // b'$' => (),
-            // b'*' => (),
-            _ => return Err(()),
+            b'$' => {
+                let (_start, end, integer) =
+                    RespTypeScan::get_line_range_as_integer(self.data, self.scan_start + 1)?;
+                self.scan_start = end;
+
+                match integer {
+                    -1 => RespTypeScan::NullString,
+                    0 => {
+                        self.scan_start += 2;
+                        RespTypeScan::BulkString(b"")
+                    }
+                    x if x > 0 => {
+                        let start = self.scan_start;
+                        self.scan_start += x as usize;
+                        let data = &self.data[start..self.scan_start];
+                        self.scan_start += 2;
+                        RespTypeScan::BulkString(data)
+                    }
+                    _ => return Err(RespError::Other),
+                }
+            }
+            b'*' => {
+                let (_start, end, integer) =
+                    RespTypeScan::get_line_range_as_integer(self.data, self.scan_start + 1)?;
+                self.scan_start = end;
+                match integer {
+                    -1 => RespTypeScan::NullArray,
+                    0 => {
+                        self.length = 0;
+                        self.scan_start += 2;
+                        return Err(RespError::None);
+                    }
+                    x if x > 0 => {
+                        self.length = x as usize;
+                        RespTypeScan::ArrayStart(self.length)
+                    }
+                    _ => return Err(RespError::Other),
+                }
+            }
+            _ => return Err(RespError::Other),
         };
 
         Ok(out)
@@ -151,11 +203,22 @@ impl<'a> Iterator for RespTypeIter<'a> {
             return None;
         }
 
-        if self.scan_start == 0 {
-            self.is_list = self.data[0] == b'*'
+        if self.length == 0 {
+            return None;
         }
 
-        Some(self.inner_loop())
+        let out = self.inner_loop();
+        if let Ok(RespTypeScan::ArrayStart(_)) = out {
+            ()
+        } else {
+            self.length = self.length.saturating_sub(1);
+        }
+
+        if Err(RespError::None) == out {
+            return None;
+        }
+
+        Some(out)
     }
 }
 
@@ -193,4 +256,58 @@ fn iter_test_3() {
 
     assert_eq!(RespTypeScan::Integer(1234), item);
     assert_eq!(None, a.next());
+}
+
+#[test]
+fn iter_test_4() {
+    let mut a = RespTypeIter::new(b"$5\r\nhello\r\n");
+    let item = a.next().unwrap().unwrap();
+
+    assert_eq!(RespTypeScan::BulkString(b"hello"), item);
+    assert_eq!(None, a.next());
+}
+
+#[test]
+fn iter_test_5() {
+    let mut a = RespTypeIter::new(b"$0\r\n\r\n");
+    let item = a.next().unwrap().unwrap();
+
+    assert_eq!(RespTypeScan::BulkString(b""), item);
+    assert_eq!(None, a.next());
+}
+
+#[test]
+fn iter_test_6() {
+    let mut a = RespTypeIter::new(b"$-1\r\n");
+    let item = a.next().unwrap().unwrap();
+
+    assert_eq!(RespTypeScan::NullString, item);
+    assert_eq!(None, a.next());
+}
+
+#[test]
+fn iter_test_7() {
+    let mut a = RespTypeIter::new(b"*3\r\n:1\r\n:2\r\n:3\r\n");
+    let item = a.next().unwrap().unwrap();
+    assert_eq!(RespTypeScan::ArrayStart(3), item);
+    let item = a.next().unwrap().unwrap();
+    assert_eq!(RespTypeScan::Integer(1), item);
+    let item = a.next().unwrap().unwrap();
+    assert_eq!(RespTypeScan::Integer(2), item);
+    let item = a.next().unwrap().unwrap();
+    assert_eq!(RespTypeScan::Integer(3), item);
+    assert_eq!(None, a.next());
+}
+
+#[test]
+fn iter_test_8() {
+    let mut a = RespTypeIter::new(b"*0\r\n");
+    assert_eq!(None, a.next());
+}
+
+#[test]
+fn iter_test_9() {
+    let mut a = RespTypeIter::new(b"*-1\r\n");
+    let item = a.next().unwrap().unwrap();
+    assert_eq!(RespTypeScan::NullArray, item);
 }
