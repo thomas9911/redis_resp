@@ -24,6 +24,8 @@ pub enum RespType {
     Integer(i64),
     BulkString(Vec<u8>),
     Array(Vec<RespType>),
+    NullString,
+    NullArray,
 }
 
 impl RespType {
@@ -33,30 +35,55 @@ impl RespType {
         }
 
         match input[0] {
-            b'+' => parse_simple_string(&input[1..]),
+            b'+' => Ok(RespType::SimpleString(Self::parse_simple_string(
+                &input[1..],
+            )?)),
+            b'-' => Ok(RespType::Error(Self::parse_simple_string(&input[1..])?)),
+            b':' => Ok(RespType::Integer(Self::parse_int(&input[1..])?)),
+            b'$' => match Self::parse_int(&input[1..])? {
+                -1 => Ok(RespType::NullString),
+                0 => Ok(RespType::BulkString(Vec::new())),
+                x if x > 0 => {
+                    let newline_index = input
+                        .windows(2)
+                        .position(|s| s == b"\r\n")
+                        .ok_or_else(|| RespError::Other)?;
+                    let rest = &input[(newline_index + 2)..];
+
+                    Ok(RespType::BulkString(rest[0..x as usize].to_vec()))
+                }
+                _ => return Err(RespError::Other),
+            },
             _ => return Err(RespError::Other),
         }
     }
-}
 
-fn parse_simple_string(input: &[u8]) -> ResultXd {
-    let mut iter = input.iter().peekable();
-    let mut data = Vec::with_capacity(input.len());
-    let mut closed = false;
-
-    while let Some(a) = iter.next() {
-        if a == &b'\r' && iter.peek() == Some(&&b'\n') {
-            closed = true;
-            break;
-        }
-
-        data.push(*a)
+    fn parse_int(input: &[u8]) -> Result<i64, RespError> {
+        let data =
+            String::from_utf8(Self::parse_simple_string(&input)?).map_err(|_| RespError::Other)?;
+        let int = data.parse().map_err(|_| RespError::Other)?;
+        Ok(int)
     }
 
-    if closed {
-        Ok(RespType::SimpleString(data))
-    } else {
-        Err(RespError::Other)
+    fn parse_simple_string(input: &[u8]) -> Result<Vec<u8>, RespError> {
+        let mut iter = input.iter().peekable();
+        let mut data = Vec::with_capacity(input.len());
+        let mut closed = false;
+
+        while let Some(a) = iter.next() {
+            if a == &b'\r' && iter.peek() == Some(&&b'\n') {
+                closed = true;
+                break;
+            }
+
+            data.push(*a)
+        }
+
+        if closed {
+            Ok(data)
+        } else {
+            Err(RespError::Other)
+        }
     }
 }
 
@@ -223,10 +250,37 @@ impl<'a> Iterator for RespTypeIter<'a> {
 }
 
 #[test]
-fn parse_simple_string_test() {
+fn parse_test_1() {
     assert_eq!(
         RespType::SimpleString(b"OK".to_vec()),
         RespType::parse(b"+OK\r\n").unwrap()
+    );
+    assert!(RespType::parse(b"+OK\r").is_err());
+}
+
+#[test]
+fn parse_test_2() {
+    assert_eq!(
+        RespType::Error(b"ERROR".to_vec()),
+        RespType::parse(b"-ERROR\r\n").unwrap()
+    );
+    assert!(RespType::parse(b"-ERROR\r").is_err());
+}
+
+#[test]
+fn parse_test_3() {
+    assert_eq!(
+        RespType::Integer(1234),
+        RespType::parse(b":1234\r\n").unwrap()
+    );
+    assert!(RespType::parse(b":1234\r").is_err());
+}
+
+#[test]
+fn parse_test_4() {
+    assert_eq!(
+        RespType::BulkString(b"hello".to_vec()),
+        RespType::parse(b"$5\r\nhello\r\n").unwrap()
     );
     assert!(RespType::parse(b"+OK\r").is_err());
 }
