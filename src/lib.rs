@@ -1,3 +1,4 @@
+mod lexer;
 /// In RESP, the first byte determines the data type:
 /// For Simple Strings, the first byte of the reply is "+"
 /// For Errors, the first byte of the reply is "-"
@@ -7,6 +8,10 @@
 ///
 ///
 ///
+///
+mod parser;
+pub use lexer::Lexer;
+pub use parser::Parser;
 
 type ResultXd = Result<RespType, RespError>;
 type ResultXp<'a> = Result<RespTypeScan<'a>, RespError>;
@@ -15,15 +20,61 @@ type ResultXp<'a> = Result<RespTypeScan<'a>, RespError>;
 pub enum RespError {
     None,
     Other,
+    NewLineMissing,
+    InvalidStart,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum RespErrorType {
+    None,
+    Other,
+    NewLineMissing,
+    InvalidStart,
+    InvalidData,
+    InvalidInteger,
+    InvalidSize,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ParseError<'a> {
+    token: Option<lexer::Token<'a>>,
+    error_type: RespErrorType,
 }
 
 #[derive(Debug, PartialEq)]
+pub enum RespTypeRef<'a> {
+    SimpleString(&'a [u8]),
+    Error(&'a [u8]),
+    Integer(i64),
+    BulkString(&'a [u8]),
+    NullString,
+    Array(Vec<RespTypeRef<'a>>),
+    NullArray,
+}
+
+impl<'a> RespTypeRef<'a> {
+    pub fn to_owned(&'a self) -> RespType {
+        match self {
+            RespTypeRef::SimpleString(x) => RespType::SimpleString(x.to_vec()),
+            RespTypeRef::Error(x) => RespType::Error(x.to_vec()),
+            RespTypeRef::Integer(x) => RespType::Integer(*x),
+            RespTypeRef::BulkString(x) => RespType::BulkString(x.to_vec()),
+            RespTypeRef::NullString => RespType::NullString,
+            RespTypeRef::Array(x) => RespType::Array(x.into_iter().map(|y| y.to_owned()).collect()),
+            RespTypeRef::NullArray => RespType::NullArray,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum RespType {
     SimpleString(Vec<u8>),
     Error(Vec<u8>),
     Integer(i64),
     BulkString(Vec<u8>),
+    NullString,
     Array(Vec<RespType>),
+    NullArray,
 }
 
 impl RespType {
