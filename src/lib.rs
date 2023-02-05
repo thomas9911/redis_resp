@@ -1,4 +1,3 @@
-mod lexer;
 /// In RESP, the first byte determines the data type:
 /// For Simple Strings, the first byte of the reply is "+"
 /// For Errors, the first byte of the reply is "-"
@@ -8,8 +7,10 @@ mod lexer;
 ///
 ///
 ///
-///
-mod parser;
+pub mod formatter;
+pub mod lexer;
+pub mod parser;
+
 pub use lexer::Lexer;
 pub use parser::Parser;
 
