@@ -43,6 +43,10 @@ pub fn bytes_to_resp_type(data: &[u8]) -> Result<RespType, ParseError> {
     Ok(Parser::new_from_bytes(data.as_ref()).parse()?.to_owned())
 }
 
+pub fn bytes_to_resp_type_ref<'a>(data: &'a [u8]) -> Result<RespTypeRef<'a>, ParseError> {
+    Ok(Parser::new_from_bytes(data.as_ref()).parse()?)
+}
+
 #[test]
 fn convert_text_to_value() {
     let result = bytes_to_value(b"$14\r\njust some text\r\n").unwrap();
@@ -53,4 +57,21 @@ fn convert_text_to_value() {
 fn convert_text_to_resp_type() {
     let result = bytes_to_resp_type(b"$14\r\njust some text\r\n").unwrap();
     assert_eq!(result, RespType::BulkString(b"just some text".to_vec()))
+}
+
+#[test]
+fn convert_text_to_resp_type_ref() {
+    let result = bytes_to_resp_type_ref(b"$14\r\njust some text\r\n").unwrap();
+    assert_eq!(result, RespTypeRef::BulkString(b"just some text"))
+}
+
+#[test]
+fn handle_error() {
+    let data = b"$100\r\nTesting\r\n";
+    let result = bytes_to_resp_type_ref(data).unwrap_err();
+    let token = result.token.unwrap();
+
+    assert_eq!(RespErrorType::InvalidSize, result.error_type);
+    assert_eq!(b"$100\r\n", &data[0..token.start]);
+    assert_eq!(b"Testing", token.data);
 }
