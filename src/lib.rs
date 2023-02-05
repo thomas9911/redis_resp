@@ -13,6 +13,8 @@ pub mod parser;
 pub mod resp_type;
 pub mod value;
 
+use std::fmt::Display;
+
 pub use lexer::Lexer;
 pub use parser::Parser;
 pub use resp_type::{RespType, RespTypeRef};
@@ -34,6 +36,14 @@ pub struct ParseError<'a> {
     token: Option<lexer::Token<'a>>,
     error_type: RespErrorType,
 }
+
+impl<'a> Display for ParseError<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self.error_type)
+    }
+}
+
+impl<'a> std::error::Error for ParseError<'a> {}
 
 pub fn bytes_to_value(data: &[u8]) -> Result<Result<Value, Value>, ParseError> {
     Ok(bytes_to_resp_type(data)?.into_value())
