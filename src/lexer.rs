@@ -1,3 +1,4 @@
+use crate::resp_type::RespTypeRefType;
 use memchr::memmem;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -14,6 +15,27 @@ pub enum TokenType {
     ArrayStart,
     ArraySize,
     Newline,
+}
+
+impl TokenType {
+    pub fn as_known_type(&self) -> Option<RespTypeRefType> {
+        use TokenType::*;
+
+        match self {
+            SimpleStringStart => Some(RespTypeRefType::SimpleString),
+            SimpleString => None,
+            ErrorStart => Some(RespTypeRefType::Error),
+            Error => None,
+            IntegerStart => Some(RespTypeRefType::Integer),
+            Integer => None,
+            BulkStringStart => Some(RespTypeRefType::BulkString),
+            BulkStringSize => None,
+            BulkString => None,
+            ArrayStart => Some(RespTypeRefType::Array),
+            ArraySize => None,
+            Newline => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -119,8 +141,6 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Token<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // dbg!(std::str::from_utf8(&self.data[self.start..]));
-
         match Token::take(&self.data[self.start..], &self.previous) {
             (_, None) => None,
             (length, Some(tokentype)) => {

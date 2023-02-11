@@ -24,6 +24,18 @@ impl<'a> RespTypeRef<'a> {
         }
     }
 
+    pub fn as_type(&'a self) -> RespTypeRefType {
+        match self {
+            RespTypeRef::SimpleString(_) => RespTypeRefType::SimpleString,
+            RespTypeRef::Error(_) => RespTypeRefType::Error,
+            RespTypeRef::Integer(_) => RespTypeRefType::Integer,
+            RespTypeRef::BulkString(_) => RespTypeRefType::BulkString,
+            RespTypeRef::NullString => RespTypeRefType::NullString,
+            RespTypeRef::Array(_) => RespTypeRefType::Array,
+            RespTypeRef::NullArray => RespTypeRefType::NullArray,
+        }
+    }
+
     pub fn is_null(&self) -> bool {
         use RespTypeRef::*;
 
@@ -194,6 +206,17 @@ impl RespType {
             _ => unreachable!(),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum RespTypeRefType {
+    SimpleString,
+    Error,
+    Integer,
+    BulkString,
+    NullString,
+    Array,
+    NullArray,
 }
 
 #[test]

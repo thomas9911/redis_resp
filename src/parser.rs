@@ -1,9 +1,12 @@
 use crate::lexer::{Token, TokenType};
+use crate::resp_type::RespTypeRefType;
 use crate::Lexer;
 use crate::{ParseError, RespErrorType, RespTypeRef};
 
+use std::iter::Peekable;
+
 pub struct Parser<'a> {
-    lexer: Lexer<'a>,
+    lexer: Peekable<Lexer<'a>>,
 }
 
 impl<'a> Parser<'a> {
@@ -12,7 +15,16 @@ impl<'a> Parser<'a> {
     }
 
     pub fn new(lexer: Lexer<'a>) -> Parser<'a> {
-        Parser { lexer }
+        Parser {
+            lexer: lexer.peekable(),
+        }
+    }
+
+    pub fn peek_known(&mut self) -> Option<RespTypeRefType> {
+        self.lexer
+            .peek()
+            .map(|token| token.tokentype.as_known_type())
+            .flatten()
     }
 
     pub fn parse(&mut self) -> Result<RespTypeRef<'a>, ParseError<'a>> {

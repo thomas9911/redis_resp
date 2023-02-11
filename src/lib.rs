@@ -13,6 +13,9 @@ pub mod parser;
 pub mod resp_type;
 pub mod value;
 
+#[cfg(feature = "serde")]
+pub mod serde;
+
 use std::fmt::Display;
 
 pub use lexer::Lexer;
@@ -20,7 +23,7 @@ pub use parser::Parser;
 pub use resp_type::{RespType, RespTypeRef};
 pub use value::Value;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RespErrorType {
     None,
     Other,
@@ -29,12 +32,22 @@ pub enum RespErrorType {
     InvalidData,
     InvalidInteger,
     InvalidSize,
+    Message(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ParseError<'a> {
     token: Option<lexer::Token<'a>>,
     error_type: RespErrorType,
+}
+
+impl<'a> ParseError<'a> {
+    pub fn message(input: String) -> ParseError<'a> {
+        ParseError {
+            token: None,
+            error_type: RespErrorType::Message(input),
+        }
+    }
 }
 
 impl<'a> Display for ParseError<'a> {
