@@ -7,6 +7,7 @@
 ///
 ///
 ///
+pub mod error;
 pub mod formatter;
 pub mod lexer;
 pub mod parser;
@@ -16,83 +17,11 @@ pub mod value;
 #[cfg(feature = "serde")]
 pub mod serde;
 
-use std::fmt::Display;
-
+pub use error::{OwnedParseError, ParseError, RespErrorType};
 pub use lexer::Lexer;
 pub use parser::Parser;
 pub use resp_type::{RespType, RespTypeRef};
 pub use value::Value;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum RespErrorType {
-    None,
-    Other,
-    NewLineMissing,
-    InvalidStart,
-    InvalidData,
-    InvalidInteger,
-    InvalidSize,
-    Message(String),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct OwnedParseError {
-    token: Option<lexer::OwnedToken>,
-    error_type: RespErrorType,
-}
-
-impl OwnedParseError {
-    pub fn message(input: String) -> OwnedParseError {
-        OwnedParseError {
-            token: None,
-            error_type: RespErrorType::Message(input),
-        }
-    }
-}
-
-impl Display for OwnedParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self.error_type)
-    }
-}
-
-impl std::error::Error for OwnedParseError {}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ParseError<'a> {
-    token: Option<lexer::Token<'a>>,
-    error_type: RespErrorType,
-}
-
-impl<'a> ParseError<'a> {
-    pub fn message(input: String) -> ParseError<'a> {
-        ParseError {
-            token: None,
-            error_type: RespErrorType::Message(input),
-        }
-    }
-
-    pub fn to_owned(&self) -> OwnedParseError {
-        let mut error = OwnedParseError {
-            token: None,
-            error_type: self.error_type.clone(),
-        };
-
-        if let Some(token) = &self.token {
-            error.token = Some(token.to_owned())
-        };
-
-        error
-    }
-}
-
-impl<'a> Display for ParseError<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self.error_type)
-    }
-}
-
-impl<'a> std::error::Error for ParseError<'a> {}
 
 pub fn bytes_to_value(data: &[u8]) -> Result<Result<Value, Value>, ParseError> {
     Ok(bytes_to_resp_type(data)?.into_value())
