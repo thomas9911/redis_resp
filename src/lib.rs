@@ -50,13 +50,13 @@ impl OwnedParseError {
     }
 }
 
-impl<'a> Display for OwnedParseError {
+impl Display for OwnedParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}", self.error_type)
     }
 }
 
-impl<'a> std::error::Error for OwnedParseError {}
+impl std::error::Error for OwnedParseError {}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ParseError<'a> {
@@ -99,11 +99,11 @@ pub fn bytes_to_value(data: &[u8]) -> Result<Result<Value, Value>, ParseError> {
 }
 
 pub fn bytes_to_resp_type(data: &[u8]) -> Result<RespType, ParseError> {
-    Ok(Parser::new_from_bytes(data.as_ref()).parse()?.to_owned())
+    Ok(Parser::new_from_bytes(data).parse()?.to_owned())
 }
 
-pub fn bytes_to_resp_type_ref<'a>(data: &'a [u8]) -> Result<RespTypeRef<'a>, ParseError> {
-    Ok(Parser::new_from_bytes(data.as_ref()).parse()?)
+pub fn bytes_to_resp_type_ref(data: &[u8]) -> Result<RespTypeRef<'_>, ParseError> {
+    Parser::new_from_bytes(data).parse()
 }
 
 #[test]

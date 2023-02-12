@@ -16,7 +16,7 @@ impl ser::Error for SerializerError {
     }
 }
 
-impl<'a> de::Error for DeserializerError {
+impl de::Error for DeserializerError {
     fn custom<T: Display>(msg: T) -> Self {
         DeserializerError::message(msg.to_string())
     }

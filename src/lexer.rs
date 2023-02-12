@@ -61,14 +61,12 @@ impl<'a> Token<'a> {
     fn take(input: &'a [u8], previous: &Option<TokenType>) -> (usize, Option<TokenType>) {
         use TokenType::*;
 
-        if input.len() == 0 {
+        if input.is_empty() {
             return (0, None);
         };
 
-        if input.len() >= 2 {
-            if &input[0..=1] == b"\r\n" {
-                return (2, Some(Newline));
-            }
+        if input.len() >= 2 && &input[0..=1] == b"\r\n" {
+            return (2, Some(Newline));
         };
 
         match input[0] {

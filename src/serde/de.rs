@@ -56,7 +56,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         }
     }
 
-    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bool<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -338,7 +338,7 @@ impl<'de, 'a> SeqAccess<'de> for ListSeqAccess<'a, 'de> {
         dbg!(&self.de.item);
 
         match &mut self.de.item {
-            Some(RespTypeRef::Array(data)) if data.len() > 0 => {
+            Some(RespTypeRef::Array(data)) if !data.is_empty() => {
                 let mut de = Deserializer {
                     input: Parser::new_from_bytes(b""),
                     item: Some(data.remove(0)),
@@ -347,9 +347,9 @@ impl<'de, 'a> SeqAccess<'de> for ListSeqAccess<'a, 'de> {
                 seed.deserialize(&mut de).map(Some)
             }
 
-            Some(RespTypeRef::Array(data)) if data.len() == 0 => Ok(None),
+            Some(RespTypeRef::Array(data)) if data.is_empty() => Ok(None),
 
-            Some(RespTypeRef::BulkString(data)) if data.len() > 0 => {
+            Some(RespTypeRef::BulkString(data)) if !data.is_empty() => {
                 let first = data[0];
                 let mut de = Deserializer {
                     input: Parser::new_from_bytes(b""),
@@ -360,9 +360,9 @@ impl<'de, 'a> SeqAccess<'de> for ListSeqAccess<'a, 'de> {
                 seed.deserialize(&mut de).map(Some)
             }
 
-            Some(RespTypeRef::Array(data)) if data.len() == 0 => Ok(None),
+            Some(RespTypeRef::Array(data)) if data.is_empty() => Ok(None),
 
-            Some(RespTypeRef::BulkString(data)) if data.len() == 0 => Ok(None),
+            Some(RespTypeRef::BulkString(data)) if data.is_empty() => Ok(None),
 
             _ => Err(Self::Error::message("invalid input".to_string())),
         }
@@ -404,8 +404,8 @@ fn deserialize_u64_test() {
 
 #[test]
 fn deserialize_unit_test() {
-    assert_eq!((), from_bytes::<()>(b"*-1\r\n").unwrap());
-    assert_eq!((), from_bytes::<()>(b"$-1\r\n").unwrap());
+    assert!(from_bytes::<()>(b"*-1\r\n").is_ok());
+    assert!(from_bytes::<()>(b"$-1\r\n").is_ok());
     assert!(from_bytes::<()>(b":-1\r\n").is_err());
 }
 

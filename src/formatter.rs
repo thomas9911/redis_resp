@@ -12,10 +12,10 @@ impl<'a> Formatter<'a> {
     }
 
     pub fn write<W: Write>(&self, output: &mut W) -> std::io::Result<()> {
-        self.inner_write(output, &self.item)
+        Self::inner_write(output, &self.item)
     }
 
-    fn inner_write<W: Write>(&self, output: &mut W, item: &RespTypeRef<'a>) -> std::io::Result<()> {
+    fn inner_write<W: Write>(output: &mut W, item: &RespTypeRef<'a>) -> std::io::Result<()> {
         use RespTypeRef::*;
 
         match item {
@@ -47,7 +47,7 @@ impl<'a> Formatter<'a> {
                 output.write_all(data.len().to_string().as_bytes())?;
                 output.write_all(b"\r\n")?;
                 for array_item in data {
-                    self.inner_write(output, array_item)?;
+                    Self::inner_write(output, array_item)?;
                 }
             }
             NullArray => output.write_all(b"*-1\r\n")?,
