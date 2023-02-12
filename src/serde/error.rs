@@ -1,4 +1,7 @@
-use serde::{de, ser};
+use serde::{
+    de,
+    ser::{self, Error},
+};
 use std::fmt::Display;
 
 pub type DeserializerResult<'a, T> = std::result::Result<T, DeserializerError>;
@@ -29,3 +32,9 @@ impl Display for SerializerError {
 }
 
 impl std::error::Error for SerializerError {}
+
+impl From<std::io::Error> for SerializerError {
+    fn from(error: std::io::Error) -> SerializerError {
+        SerializerError::custom(error)
+    }
+}
