@@ -10,22 +10,26 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    /// Create a parser from bytes
     pub fn new_from_bytes(data: &'a [u8]) -> Parser<'a> {
         Parser::new(Lexer::new(data))
     }
 
+    /// Create a parser from a `Lexer`
     pub fn new(lexer: Lexer<'a>) -> Parser<'a> {
         Parser {
             lexer: lexer.peekable(),
         }
     }
 
+    /// Check the next token from the lexer is the start of a type
     pub fn peek_known(&mut self) -> Option<RespTypeRefType> {
         self.lexer
             .peek()
             .and_then(|token| token.tokentype.as_known_type())
     }
 
+    /// Parse / Advance the lexer until a new item is found
     pub fn parse(&mut self) -> Result<RespTypeRef<'a>, ParseError<'a>> {
         match self.lexer.next() {
             Some(token) if token.tokentype == TokenType::SimpleStringStart => {
