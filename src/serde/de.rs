@@ -1,17 +1,15 @@
-use crate::{Parser, RespTypeRef};
+use crate::{OwnedParseError, Parser, RespTypeRef};
 
 use crate::serde::{DeserializerError, DeserializerResult};
 use serde::de::{self, Deserialize, DeserializeSeed, SeqAccess, Visitor};
 
-pub fn from_bytes<'de: 'a, 'a, T>(input: &'de [u8]) -> Result<T, String>
+pub fn from_bytes<'de: 'a, 'a, T>(input: &'de [u8]) -> Result<T, OwnedParseError>
 where
     T: Deserialize<'de>,
 {
     let mut deserializer = Deserializer::from_bytes(input);
-    // let t = T::deserialize(&mut deserializer)?;
-    // Ok(t)
-
-    T::deserialize(&mut deserializer).map_err(|e| e.to_string())
+    T::deserialize(&mut deserializer)
+    // T::deserialize(&mut deserializer).map_err(|e| e.to_string())
 }
 
 pub struct Deserializer<'de> {
@@ -29,7 +27,7 @@ impl<'de> Deserializer<'de> {
 
     fn set_item(&mut self) -> DeserializerResult<'de, ()> {
         if self.item.is_none() {
-            let item = self.input.parse()?;
+            let item = self.input.parse().map_err(|e| e.to_owned())?;
             self.item = Some(item);
         }
 
@@ -38,13 +36,12 @@ impl<'de> Deserializer<'de> {
 }
 
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
-    type Error = DeserializerError<'a>;
+    type Error = DeserializerError;
 
     fn deserialize_any<V>(self, visitor: V) -> DeserializerResult<'a, V::Value>
     where
         V: Visitor<'de>,
     {
-
         self.set_item()?;
 
         match self.item {
@@ -91,7 +88,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        match &self.item {
+        match &mut self.item {
             Some(RespTypeRef::Integer(data)) => visitor.visit_i64(*data),
             None => self.deserialize_any(visitor),
             e => {
@@ -197,10 +194,8 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             None => {
                 self.set_item()?;
                 self.deserialize_option(visitor)
-            },
-            Some(_) => {
-                visitor.visit_some(self)
             }
+            Some(_) => visitor.visit_some(self),
         }
     }
 
@@ -245,12 +240,13 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        match self.item {
-            Some(RespTypeRef::BulkString(data)) => visitor.visit_bytes(data),
+        match &self.item {
+            Some(RespTypeRef::BulkString(_)) => visitor.visit_seq(ListSeqAccess::new(self)),
+            Some(RespTypeRef::Array(_)) => visitor.visit_seq(ListSeqAccess::new(self)),
             None => {
                 self.set_item()?;
                 self.deserialize_seq(visitor)
-            },
+            }
             _ => Err(Self::Error::message("invalid input".to_string())),
         }
     }
@@ -320,10 +316,69 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 }
 
+struct ListSeqAccess<'a, 'de: 'a> {
+    de: &'a mut Deserializer<'de>,
+}
+
+impl<'a, 'de> ListSeqAccess<'a, 'de> {
+    fn new(de: &'a mut Deserializer<'de>) -> Self {
+        ListSeqAccess { de }
+    }
+}
+
+// `SeqAccess` is provided to the `Visitor` to give it the ability to iterate
+// through elements of the sequence.
+impl<'de, 'a> SeqAccess<'de> for ListSeqAccess<'a, 'de> {
+    type Error = DeserializerError;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> DeserializerResult<'a, Option<T::Value>>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        dbg!(&self.de.item);
+
+        match &mut self.de.item {
+            Some(RespTypeRef::Array(data)) if data.len() > 0 => {
+                let mut de = Deserializer {
+                    input: Parser::new_from_bytes(b""),
+                    item: Some(data.remove(0)),
+                };
+
+                seed.deserialize(&mut de).map(Some)
+            }
+
+            Some(RespTypeRef::Array(data)) if data.len() == 0 => Ok(None),
+
+            Some(RespTypeRef::BulkString(data)) if data.len() > 0 => {
+                let first = data[0];
+                let mut de = Deserializer {
+                    input: Parser::new_from_bytes(b""),
+                    item: Some(RespTypeRef::Integer(first as i64)),
+                };
+                self.de.item = Some(RespTypeRef::BulkString(&data[1..]));
+
+                seed.deserialize(&mut de).map(Some)
+            }
+
+            Some(RespTypeRef::Array(data)) if data.len() == 0 => Ok(None),
+
+            Some(RespTypeRef::BulkString(data)) if data.len() == 0 => Ok(None),
+
+            _ => Err(Self::Error::message("invalid input".to_string())),
+        }
+    }
+}
+
 #[test]
 fn deserialize_string_test() {
     let out: String = from_bytes(b"$14\r\njust some text\r\n").unwrap();
     assert_eq!(out, "just some text");
+}
+
+#[test]
+fn deserialize_vec_bytes_test() {
+    let out: Vec<u8> = from_bytes(b"$4\r\n\xfe\xfe\xff\xff\r\n").unwrap();
+    assert_eq!(&out, b"\xfe\xfe\xff\xff");
 }
 
 #[test]
@@ -347,7 +402,6 @@ fn deserialize_u64_test() {
     assert_eq!(12345, from_bytes::<u64>(b":12345\r\n").unwrap());
 }
 
-
 #[test]
 fn deserialize_unit_test() {
     assert_eq!((), from_bytes::<()>(b"*-1\r\n").unwrap());
@@ -358,5 +412,25 @@ fn deserialize_unit_test() {
 #[test]
 fn deserialize_option_test() {
     assert_eq!(None, from_bytes::<Option<String>>(b"$-1\r\n").unwrap());
-    assert_eq!(Some("t".to_string()), from_bytes::<Option<String>>(b"$1\r\nt\r\n").unwrap());
+    assert_eq!(
+        Some("t".to_string()),
+        from_bytes::<Option<String>>(b"$1\r\nt\r\n").unwrap()
+    );
+}
+
+#[test]
+fn deserialize_list_int_test() {
+    let out: Vec<i32> = from_bytes(b"*3\r\n:1\r\n:2\r\n:3\r\n").unwrap();
+    assert_eq!(out, vec![1, 2, 3]);
+}
+
+#[test]
+fn deserialize_list_error_test() {
+    assert!(from_bytes::<Vec<String>>(b"$14\r\njust some text\r\n").is_err());
+}
+
+#[test]
+fn deserialize_list_string_test() {
+    let out: Vec<String> = from_bytes(b"*3\r\n$14\r\njust some text\r\n+OK\r\n+test\r\n").unwrap();
+    assert_eq!(out, vec!["just some text", "OK", "test"]);
 }

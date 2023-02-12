@@ -36,6 +36,29 @@ pub enum RespErrorType {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct OwnedParseError {
+    token: Option<lexer::OwnedToken>,
+    error_type: RespErrorType,
+}
+
+impl OwnedParseError {
+    pub fn message(input: String) -> OwnedParseError {
+        OwnedParseError {
+            token: None,
+            error_type: RespErrorType::Message(input),
+        }
+    }
+}
+
+impl<'a> Display for OwnedParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self.error_type)
+    }
+}
+
+impl<'a> std::error::Error for OwnedParseError {}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct ParseError<'a> {
     token: Option<lexer::Token<'a>>,
     error_type: RespErrorType,
@@ -47,6 +70,19 @@ impl<'a> ParseError<'a> {
             token: None,
             error_type: RespErrorType::Message(input),
         }
+    }
+
+    pub fn to_owned(&self) -> OwnedParseError {
+        let mut error = OwnedParseError {
+            token: None,
+            error_type: self.error_type.clone(),
+        };
+
+        if let Some(token) = &self.token {
+            error.token = Some(token.to_owned())
+        };
+
+        error
     }
 }
 

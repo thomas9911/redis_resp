@@ -1,10 +1,10 @@
 use serde::{de, ser};
 use std::fmt::Display;
 
-pub type DeserializerResult<'a, T> = std::result::Result<T, DeserializerError<'a>>;
+pub type DeserializerResult<'a, T> = std::result::Result<T, DeserializerError>;
 pub type SerializerResult<T> = std::result::Result<T, SerializerError>;
 
-pub type DeserializerError<'a> = crate::ParseError<'a>;
+pub type DeserializerError = crate::OwnedParseError;
 // pub type SerializerError = String;
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ impl ser::Error for SerializerError {
     }
 }
 
-impl<'a> de::Error for DeserializerError<'a> {
+impl<'a> de::Error for DeserializerError {
     fn custom<T: Display>(msg: T) -> Self {
         DeserializerError::message(msg.to_string())
     }

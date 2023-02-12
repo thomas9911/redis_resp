@@ -39,6 +39,13 @@ impl TokenType {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct OwnedToken {
+    pub start: usize,
+    pub end: usize,
+    pub tokentype: TokenType,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token<'a> {
     pub start: usize,
     pub end: usize,
@@ -117,6 +124,14 @@ impl<'a> Token<'a> {
             b'$' => (1, Some(BulkStringStart)),
             b'*' => (1, Some(ArrayStart)),
             _ => (0, None),
+        }
+    }
+
+    pub fn to_owned(&self) -> OwnedToken {
+        OwnedToken {
+            start: self.start,
+            end: self.end,
+            tokentype: self.tokentype,
         }
     }
 }
