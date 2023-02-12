@@ -7,54 +7,32 @@
 ///
 ///
 ///
+pub mod error;
 pub mod formatter;
 pub mod lexer;
 pub mod parser;
 pub mod resp_type;
 pub mod value;
 
-use std::fmt::Display;
+#[cfg(feature = "serde")]
+pub mod serde;
 
+pub use error::{OwnedParseError, ParseError, RespErrorType};
 pub use lexer::Lexer;
 pub use parser::Parser;
 pub use resp_type::{RespType, RespTypeRef};
 pub use value::Value;
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum RespErrorType {
-    None,
-    Other,
-    NewLineMissing,
-    InvalidStart,
-    InvalidData,
-    InvalidInteger,
-    InvalidSize,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ParseError<'a> {
-    token: Option<lexer::Token<'a>>,
-    error_type: RespErrorType,
-}
-
-impl<'a> Display for ParseError<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self.error_type)
-    }
-}
-
-impl<'a> std::error::Error for ParseError<'a> {}
 
 pub fn bytes_to_value(data: &[u8]) -> Result<Result<Value, Value>, ParseError> {
     Ok(bytes_to_resp_type(data)?.into_value())
 }
 
 pub fn bytes_to_resp_type(data: &[u8]) -> Result<RespType, ParseError> {
-    Ok(Parser::new_from_bytes(data.as_ref()).parse()?.to_owned())
+    Ok(Parser::new_from_bytes(data).parse()?.to_owned())
 }
 
-pub fn bytes_to_resp_type_ref<'a>(data: &'a [u8]) -> Result<RespTypeRef<'a>, ParseError> {
-    Ok(Parser::new_from_bytes(data.as_ref()).parse()?)
+pub fn bytes_to_resp_type_ref(data: &[u8]) -> Result<RespTypeRef<'_>, ParseError> {
+    Parser::new_from_bytes(data).parse()
 }
 
 #[test]

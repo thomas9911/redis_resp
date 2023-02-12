@@ -1,3 +1,4 @@
+use crate::resp_type::RespTypeRefType;
 use memchr::memmem;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -16,6 +17,34 @@ pub enum TokenType {
     Newline,
 }
 
+impl TokenType {
+    pub fn as_known_type(&self) -> Option<RespTypeRefType> {
+        use TokenType::*;
+
+        match self {
+            SimpleStringStart => Some(RespTypeRefType::SimpleString),
+            SimpleString => None,
+            ErrorStart => Some(RespTypeRefType::Error),
+            Error => None,
+            IntegerStart => Some(RespTypeRefType::Integer),
+            Integer => None,
+            BulkStringStart => Some(RespTypeRefType::BulkString),
+            BulkStringSize => None,
+            BulkString => None,
+            ArrayStart => Some(RespTypeRefType::Array),
+            ArraySize => None,
+            Newline => None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct OwnedToken {
+    pub start: usize,
+    pub end: usize,
+    pub tokentype: TokenType,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Token<'a> {
     pub start: usize,
@@ -32,14 +61,12 @@ impl<'a> Token<'a> {
     fn take(input: &'a [u8], previous: &Option<TokenType>) -> (usize, Option<TokenType>) {
         use TokenType::*;
 
-        if input.len() == 0 {
+        if input.is_empty() {
             return (0, None);
         };
 
-        if input.len() >= 2 {
-            if &input[0..=1] == b"\r\n" {
-                return (2, Some(Newline));
-            }
+        if input.len() >= 2 && &input[0..=1] == b"\r\n" {
+            return (2, Some(Newline));
         };
 
         match input[0] {
@@ -97,6 +124,14 @@ impl<'a> Token<'a> {
             _ => (0, None),
         }
     }
+
+    pub fn to_owned(&self) -> OwnedToken {
+        OwnedToken {
+            start: self.start,
+            end: self.end,
+            tokentype: self.tokentype,
+        }
+    }
 }
 
 pub struct Lexer<'a> {
@@ -119,8 +154,6 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Token<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // dbg!(std::str::from_utf8(&self.data[self.start..]));
-
         match Token::take(&self.data[self.start..], &self.previous) {
             (_, None) => None,
             (length, Some(tokentype)) => {

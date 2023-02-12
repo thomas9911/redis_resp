@@ -7,3 +7,12 @@ edition = "2021"
 
 [dependencies]
 memchr = "2.5.0"
+serde = {version = "1.0", optional = true}
+
+[dev-dependencies]
+serde_bytes = {version = "0.11.9"}
+
+
+[features]
+# The dep: syntax is only available starting with Rust 1.60. Previous versions can only use the implicit feature name.
+serde = ["dep:serde"]

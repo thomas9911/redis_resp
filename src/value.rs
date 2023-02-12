@@ -9,11 +9,11 @@ pub enum Value {
     Null,
 }
 
-impl Into<RespType> for Value {
-    fn into(self) -> RespType {
+impl From<Value> for RespType {
+    fn from(val: Value) -> Self {
         use Value::*;
 
-        match self {
+        match val {
             Bytes(data) => RespType::BulkString(data),
             String(data) => RespType::BulkString(data.into()),
             Int(data) => RespType::Integer(data),
@@ -23,8 +23,8 @@ impl Into<RespType> for Value {
     }
 }
 
-impl Into<Result<Value, Value>> for RespType {
-    fn into(self) -> Result<Value, Value> {
-        self.into_value()
+impl From<RespType> for Result<Value, Value> {
+    fn from(val: RespType) -> Self {
+        val.into_value()
     }
 }

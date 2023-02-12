@@ -19,19 +19,27 @@ impl<'a> RespTypeRef<'a> {
             RespTypeRef::Integer(x) => RespType::Integer(*x),
             RespTypeRef::BulkString(x) => RespType::BulkString(x.to_vec()),
             RespTypeRef::NullString => RespType::NullString,
-            RespTypeRef::Array(x) => RespType::Array(x.into_iter().map(|y| y.to_owned()).collect()),
+            RespTypeRef::Array(x) => RespType::Array(x.iter().map(|y| y.to_owned()).collect()),
             RespTypeRef::NullArray => RespType::NullArray,
+        }
+    }
+
+    pub fn as_type(&'a self) -> RespTypeRefType {
+        match self {
+            RespTypeRef::SimpleString(_) => RespTypeRefType::SimpleString,
+            RespTypeRef::Error(_) => RespTypeRefType::Error,
+            RespTypeRef::Integer(_) => RespTypeRefType::Integer,
+            RespTypeRef::BulkString(_) => RespTypeRefType::BulkString,
+            RespTypeRef::NullString => RespTypeRefType::NullString,
+            RespTypeRef::Array(_) => RespTypeRefType::Array,
+            RespTypeRef::NullArray => RespTypeRefType::NullArray,
         }
     }
 
     pub fn is_null(&self) -> bool {
         use RespTypeRef::*;
 
-        match self {
-            NullString => true,
-            NullArray => true,
-            _ => false,
-        }
+        matches!(self, NullString | NullArray)
     }
 
     pub fn as_bytes(&self) -> Option<&[u8]> {
@@ -53,15 +61,12 @@ impl<'a> RespTypeRef<'a> {
     }
 
     pub fn as_string(&self) -> Option<&str> {
-        self.as_bytes()
-            .map(|x| std::str::from_utf8(x).ok())
-            .flatten()
+        self.as_bytes().and_then(|x| std::str::from_utf8(x).ok())
     }
 
     pub fn as_error_string(&self) -> Option<&str> {
         self.as_error_bytes()
-            .map(|x| std::str::from_utf8(x).ok())
-            .flatten()
+            .and_then(|x| std::str::from_utf8(x).ok())
     }
 }
 
@@ -84,9 +89,7 @@ impl RespType {
             RespType::Integer(x) => RespTypeRef::Integer(*x),
             RespType::BulkString(x) => RespTypeRef::BulkString(x),
             RespType::NullString => RespTypeRef::NullString,
-            RespType::Array(x) => {
-                RespTypeRef::Array(x.into_iter().map(|y| y.as_referenced()).collect())
-            }
+            RespType::Array(x) => RespTypeRef::Array(x.iter().map(|y| y.as_referenced()).collect()),
             RespType::NullArray => RespTypeRef::NullArray,
         }
     }
@@ -94,11 +97,7 @@ impl RespType {
     pub fn is_null(&self) -> bool {
         use RespType::*;
 
-        match self {
-            NullString => true,
-            NullArray => true,
-            _ => false,
-        }
+        matches!(self, NullString | NullArray)
     }
 
     pub fn as_bytes(&self) -> Option<&[u8]> {
@@ -120,15 +119,12 @@ impl RespType {
     }
 
     pub fn as_string(&self) -> Option<&str> {
-        self.as_bytes()
-            .map(|x| std::str::from_utf8(x).ok())
-            .flatten()
+        self.as_bytes().and_then(|x| std::str::from_utf8(x).ok())
     }
 
     pub fn as_error_string(&self) -> Option<&str> {
         self.as_error_bytes()
-            .map(|x| std::str::from_utf8(x).ok())
-            .flatten()
+            .and_then(|x| std::str::from_utf8(x).ok())
     }
 
     pub fn into_bytes(self) -> Option<Vec<u8>> {
@@ -150,15 +146,12 @@ impl RespType {
     }
 
     pub fn into_string(self) -> Option<String> {
-        self.into_bytes()
-            .map(|x| String::from_utf8(x).ok())
-            .flatten()
+        self.into_bytes().and_then(|x| String::from_utf8(x).ok())
     }
 
     pub fn into_error_string(self) -> Option<String> {
         self.into_error_bytes()
-            .map(|x| String::from_utf8(x).ok())
-            .flatten()
+            .and_then(|x| String::from_utf8(x).ok())
     }
 
     pub fn into_value(self) -> Result<Value, Value> {
@@ -194,6 +187,17 @@ impl RespType {
             _ => unreachable!(),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum RespTypeRefType {
+    SimpleString,
+    Error,
+    Integer,
+    BulkString,
+    NullString,
+    Array,
+    NullArray,
 }
 
 #[test]

@@ -1,9 +1,12 @@
 use crate::lexer::{Token, TokenType};
+use crate::resp_type::RespTypeRefType;
 use crate::Lexer;
 use crate::{ParseError, RespErrorType, RespTypeRef};
 
+use std::iter::Peekable;
+
 pub struct Parser<'a> {
-    lexer: Lexer<'a>,
+    lexer: Peekable<Lexer<'a>>,
 }
 
 impl<'a> Parser<'a> {
@@ -12,7 +15,15 @@ impl<'a> Parser<'a> {
     }
 
     pub fn new(lexer: Lexer<'a>) -> Parser<'a> {
-        Parser { lexer }
+        Parser {
+            lexer: lexer.peekable(),
+        }
+    }
+
+    pub fn peek_known(&mut self) -> Option<RespTypeRefType> {
+        self.lexer
+            .peek()
+            .and_then(|token| token.tokentype.as_known_type())
     }
 
     pub fn parse(&mut self) -> Result<RespTypeRef<'a>, ParseError<'a>> {
@@ -28,18 +39,14 @@ impl<'a> Parser<'a> {
                 return self.parse_bulk_string()
             }
             Some(token) if token.tokentype == TokenType::ArrayStart => return self.parse_array(),
-            Some(token) => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidStart,
-                    token: Some(token),
-                })
-            }
-            None => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidStart,
-                    token: None,
-                })
-            }
+            Some(token) => Err(ParseError {
+                error_type: RespErrorType::InvalidStart,
+                token: Some(token),
+            }),
+            None => Err(ParseError {
+                error_type: RespErrorType::InvalidStart,
+                token: None,
+            }),
         }
     }
 
@@ -53,18 +60,14 @@ impl<'a> Parser<'a> {
                 self.check_newline()?;
                 return Ok(RespTypeRef::SimpleString(data));
             }
-            Some(token) => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: Some(token),
-                })
-            }
-            None => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: None,
-                })
-            }
+            Some(token) => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: Some(token),
+            }),
+            None => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: None,
+            }),
         }
     }
 
@@ -78,18 +81,14 @@ impl<'a> Parser<'a> {
                 self.check_newline()?;
                 return Ok(RespTypeRef::Error(data));
             }
-            Some(token) => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: Some(token),
-                })
-            }
-            None => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: None,
-                })
-            }
+            Some(token) => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: Some(token),
+            }),
+            None => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: None,
+            }),
         }
     }
 
@@ -105,18 +104,14 @@ impl<'a> Parser<'a> {
 
                 return Ok(RespTypeRef::Integer(integer));
             }
-            Some(token) => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: Some(token),
-                })
-            }
-            None => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: None,
-                })
-            }
+            Some(token) => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: Some(token),
+            }),
+            None => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: None,
+            }),
         }
     }
 
@@ -148,18 +143,14 @@ impl<'a> Parser<'a> {
             Some(token) if token.tokentype == TokenType::Newline && size == 0 => {
                 return Ok(RespTypeRef::BulkString(b""));
             }
-            Some(token) => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: Some(token),
-                })
-            }
-            None => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: None,
-                })
-            }
+            Some(token) => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: Some(token),
+            }),
+            None => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: None,
+            }),
         }
     }
 
@@ -205,18 +196,14 @@ impl<'a> Parser<'a> {
 
                 Ok(size)
             }
-            Some(token) => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: Some(token),
-                })
-            }
-            None => {
-                return Err(ParseError {
-                    error_type: RespErrorType::InvalidData,
-                    token: None,
-                })
-            }
+            Some(token) => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: Some(token),
+            }),
+            None => Err(ParseError {
+                error_type: RespErrorType::InvalidData,
+                token: None,
+            }),
         }
     }
 
@@ -225,19 +212,15 @@ impl<'a> Parser<'a> {
             Some(Token {
                 tokentype: TokenType::Newline,
                 ..
-            }) => return Ok(()),
-            Some(token) => {
-                return Err(ParseError {
-                    error_type: RespErrorType::NewLineMissing,
-                    token: Some(token),
-                })
-            }
-            None => {
-                return Err(ParseError {
-                    error_type: RespErrorType::NewLineMissing,
-                    token: None,
-                })
-            }
+            }) => Ok(()),
+            Some(token) => Err(ParseError {
+                error_type: RespErrorType::NewLineMissing,
+                token: Some(token),
+            }),
+            None => Err(ParseError {
+                error_type: RespErrorType::NewLineMissing,
+                token: None,
+            }),
         }
     }
 }
