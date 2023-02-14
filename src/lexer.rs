@@ -1,6 +1,16 @@
 use crate::resp_type::RespTypeRefType;
 use memchr::memmem;
 
+pub mod consts {
+    pub const SIMPLE_STRING: u8 = b'+';
+    pub const ERROR: u8 = b'-';
+    pub const INTEGER: u8 = b':';
+    pub const BULK_STRING: u8 = b'$';
+    pub const ARRAY: u8 = b'*';
+}
+
+
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TokenType {
     SimpleStringStart,
@@ -116,11 +126,11 @@ impl<'a> Token<'a> {
                     (0, None)
                 }
             }
-            b'+' => (1, Some(SimpleStringStart)),
-            b'-' => (1, Some(ErrorStart)),
-            b':' => (1, Some(IntegerStart)),
-            b'$' => (1, Some(BulkStringStart)),
-            b'*' => (1, Some(ArrayStart)),
+            consts::SIMPLE_STRING => (1, Some(SimpleStringStart)),
+            consts::ERROR => (1, Some(ErrorStart)),
+            consts::INTEGER => (1, Some(IntegerStart)),
+            consts::BULK_STRING => (1, Some(BulkStringStart)),
+            consts::ARRAY => (1, Some(ArrayStart)),
             _ => (0, None),
         }
     }
