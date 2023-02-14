@@ -1,15 +1,6 @@
+use crate::consts;
 use crate::resp_type::RespTypeRefType;
 use memchr::memmem;
-
-pub mod consts {
-    pub const SIMPLE_STRING: u8 = b'+';
-    pub const ERROR: u8 = b'-';
-    pub const INTEGER: u8 = b':';
-    pub const BULK_STRING: u8 = b'$';
-    pub const ARRAY: u8 = b'*';
-}
-
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TokenType {
@@ -64,7 +55,7 @@ pub struct Token<'a> {
 }
 
 fn find_newline(input: &[u8]) -> Option<usize> {
-    memmem::find(input, b"\r\n")
+    memmem::find(input, &consts::NEWLINE)
 }
 
 impl<'a> Token<'a> {
@@ -75,7 +66,7 @@ impl<'a> Token<'a> {
             return (0, None);
         };
 
-        if input.len() >= 2 && &input[0..=1] == b"\r\n" {
+        if input.len() >= 2 && &input[0..=1] == &consts::NEWLINE {
             return (2, Some(Newline));
         };
 

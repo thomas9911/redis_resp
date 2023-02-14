@@ -1,5 +1,6 @@
 use std::io::Write;
 
+use crate::consts;
 use crate::RespTypeRef;
 
 pub struct Formatter<'a> {
@@ -20,32 +21,32 @@ impl<'a> Formatter<'a> {
 
         match item {
             SimpleString(data) => {
-                output.write_all(b"+")?;
+                output.write_all(&[consts::SIMPLE_STRING])?;
                 output.write_all(data)?;
-                output.write_all(b"\r\n")?;
+                output.write_all(&consts::NEWLINE)?;
             }
             Error(data) => {
-                output.write_all(b"-")?;
+                output.write_all(&[consts::ERROR])?;
                 output.write_all(data)?;
-                output.write_all(b"\r\n")?;
+                output.write_all(&consts::NEWLINE)?;
             }
             Integer(data) => {
-                output.write_all(b":")?;
+                output.write_all(&[consts::INTEGER])?;
                 output.write_all(data.to_string().as_bytes())?;
-                output.write_all(b"\r\n")?;
+                output.write_all(&consts::NEWLINE)?;
             }
             BulkString(data) => {
-                output.write_all(b"$")?;
+                output.write_all(&[consts::BULK_STRING])?;
                 output.write_all(data.len().to_string().as_bytes())?;
-                output.write_all(b"\r\n")?;
+                output.write_all(&consts::NEWLINE)?;
                 output.write_all(data)?;
-                output.write_all(b"\r\n")?;
+                output.write_all(&consts::NEWLINE)?;
             }
             NullString => output.write_all(b"$-1\r\n")?,
             Array(data) => {
-                output.write_all(b"*")?;
+                output.write_all(&[consts::ARRAY])?;
                 output.write_all(data.len().to_string().as_bytes())?;
-                output.write_all(b"\r\n")?;
+                output.write_all(&consts::NEWLINE)?;
                 for array_item in data {
                     Self::inner_write(output, array_item)?;
                 }
