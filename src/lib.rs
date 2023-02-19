@@ -18,14 +18,31 @@ pub mod value;
 #[cfg(feature = "serde")]
 pub mod serde;
 
-pub use error::{OwnedParseError, ParseError, RespErrorType};
+pub use error::{FormatError, OwnedParseError, ParseError, RespErrorType};
+pub use im::{HashMap, HashSet};
 pub use lexer::Lexer;
+pub use num_bigint::BigInt;
+pub use ordered_float::OrderedFloat;
 pub use parser::Parser;
 pub use resp_type::{RespType, RespTypeRef};
 pub use value::Value;
 
+/// struct containing the auth info from the [`Hello`] struct
+#[derive(Debug, PartialEq, Hash, Eq, Clone)]
+pub struct Auth {
+    pub username: String,
+    pub password: String,
+}
+
+/// struct containing the hello message info
+#[derive(Debug, PartialEq, Hash, Eq, Clone)]
+pub struct Hello {
+    pub protocol: String,
+    pub auth: Option<Auth>,
+}
+
 /// Convenience function to parse Redis Resp format into Rust type
-/// (maybe look at the serde module to parse specific Rust type).
+/// (maybe look at the [`serde`] module to parse specific Rust type).
 ///
 /// ```rust
 /// use redis_resp::{Value, bytes_to_value};
@@ -45,7 +62,8 @@ pub fn bytes_to_value(data: &[u8]) -> Result<Result<Value, Value>, ParseError> {
 /// assert_eq!(Ok(RespType::BulkString(b"testing".to_vec())), bytes_to_resp_type(b"$7\r\ntesting\r\n"));
 /// ```
 pub fn bytes_to_resp_type(data: &[u8]) -> Result<RespType, ParseError> {
-    Ok(Parser::new_from_bytes(data).parse()?.to_owned())
+    let asdf = Parser::new_from_bytes(data).parse()?;
+    Ok(asdf.claim())
 }
 
 /// Convenience function to parse Redis Resp format

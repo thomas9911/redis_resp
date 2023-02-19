@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 529d28e16b2577cf710615fe6a76195baadd0a31e9225ae5fe42a442e7bcb5ea # shrinks to x = Boolean(false)
+cc 7961ab456f678184e6927d6790325310ed2a3e8843e76292c4e9c33f8cf4e63e # shrinks to x = Set({NullString})

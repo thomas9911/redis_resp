@@ -1,6 +1,34 @@
+use crate::Hello;
 use crate::Value;
+use crate::{BigInt, HashMap, HashSet, OrderedFloat};
+use std::borrow::Cow;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash, Eq, Clone)]
+pub struct AttributeRef<'a> {
+    pub attributes: Vec<RespTypeRef<'a>>,
+    pub data: Box<RespTypeRef<'a>>,
+}
+
+impl Attribute {
+    pub fn as_referenced(&'_ self) -> AttributeRef<'_> {
+        AttributeRef {
+            attributes: self.attributes.iter().map(|y| y.as_referenced()).collect(),
+            data: Box::new(self.data.as_referenced()),
+        }
+    }
+}
+
+impl<'a> AttributeRef<'a> {
+    /// claims the reference as the actual object, sort of like to_owned but returns a different type
+    fn claim(&self) -> Attribute {
+        Attribute {
+            attributes: self.attributes.iter().map(|y| y.claim()).collect(),
+            data: Box::new(self.data.claim()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum RespTypeRef<'a> {
     SimpleString(&'a [u8]),
     Error(&'a [u8]),
@@ -9,18 +37,47 @@ pub enum RespTypeRef<'a> {
     NullString,
     Array(Vec<RespTypeRef<'a>>),
     NullArray,
+    Null,
+    Double(OrderedFloat<f64>),
+    Boolean(bool),
+    BlobError(&'a [u8]),
+    VerbatimString(&'a [u8], &'a [u8]),
+    Map(Vec<(RespTypeRef<'a>, RespTypeRef<'a>)>),
+    Set(Vec<RespTypeRef<'a>>),
+    Attribute(AttributeRef<'a>),
+    Push(Vec<RespTypeRef<'a>>),
+    Hello(Hello),
+    BigInteger(Cow<'a, [u8]>),
 }
 
 impl<'a> RespTypeRef<'a> {
-    pub fn to_owned(&'a self) -> RespType {
+    pub fn claim(&'a self) -> RespType {
         match self {
             RespTypeRef::SimpleString(x) => RespType::SimpleString(x.to_vec()),
             RespTypeRef::Error(x) => RespType::Error(x.to_vec()),
             RespTypeRef::Integer(x) => RespType::Integer(*x),
             RespTypeRef::BulkString(x) => RespType::BulkString(x.to_vec()),
             RespTypeRef::NullString => RespType::NullString,
-            RespTypeRef::Array(x) => RespType::Array(x.iter().map(|y| y.to_owned()).collect()),
+            RespTypeRef::Array(x) => RespType::Array(x.iter().map(|y| y.claim()).collect()),
             RespTypeRef::NullArray => RespType::NullArray,
+            RespTypeRef::Null => RespType::Null,
+            RespTypeRef::Double(x) => RespType::Double(*x),
+            RespTypeRef::Boolean(x) => RespType::Boolean(*x),
+            RespTypeRef::BlobError(x) => RespType::BlobError(x.to_vec()),
+            RespTypeRef::VerbatimString(x, y) => RespType::VerbatimString(x.to_vec(), y.to_vec()),
+            RespTypeRef::Map(x) => {
+                RespType::Map(x.iter().map(|(k, v)| (k.claim(), v.claim())).collect())
+            }
+            RespTypeRef::Set(x) => RespType::Set(x.iter().map(|y| y.claim()).collect()),
+            RespTypeRef::Attribute(x) => RespType::Attribute(x.claim()),
+            RespTypeRef::Push(x) => RespType::Push(x.iter().map(|y| y.claim()).collect()),
+            RespTypeRef::Hello(x) => RespType::Hello(x.clone()),
+            RespTypeRef::BigInteger(x) => RespType::BigInteger(
+                std::str::from_utf8(x)
+                    .expect("invalid bytes")
+                    .parse()
+                    .expect("invalid bytes"),
+            ),
         }
     }
 
@@ -33,6 +90,17 @@ impl<'a> RespTypeRef<'a> {
             RespTypeRef::NullString => RespTypeRefType::NullString,
             RespTypeRef::Array(_) => RespTypeRefType::Array,
             RespTypeRef::NullArray => RespTypeRefType::NullArray,
+            RespTypeRef::Null => RespTypeRefType::Null,
+            RespTypeRef::Double(_) => RespTypeRefType::Double,
+            RespTypeRef::Boolean(_) => RespTypeRefType::Boolean,
+            RespTypeRef::BlobError(_) => RespTypeRefType::BlobError,
+            RespTypeRef::VerbatimString(_, _) => RespTypeRefType::VerbatimString,
+            RespTypeRef::Map(_) => RespTypeRefType::Map,
+            RespTypeRef::Set(_) => RespTypeRefType::Set,
+            RespTypeRef::Attribute(_) => RespTypeRefType::Attribute,
+            RespTypeRef::Push(_) => RespTypeRefType::Push,
+            RespTypeRef::Hello(_) => RespTypeRefType::Hello,
+            RespTypeRef::BigInteger(_) => RespTypeRefType::BigInteger,
         }
     }
 
@@ -70,7 +138,13 @@ impl<'a> RespTypeRef<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Hash, Eq, Clone)]
+pub struct Attribute {
+    pub attributes: Vec<RespType>,
+    pub data: Box<RespType>,
+}
+
+#[derive(Debug, PartialEq, Hash, Eq, Clone)]
 pub enum RespType {
     SimpleString(Vec<u8>),
     Error(Vec<u8>),
@@ -79,6 +153,17 @@ pub enum RespType {
     NullString,
     Array(Vec<RespType>),
     NullArray,
+    Null,
+    Double(OrderedFloat<f64>),
+    Boolean(bool),
+    BlobError(Vec<u8>),
+    VerbatimString(Vec<u8>, Vec<u8>),
+    Map(HashMap<RespType, RespType>),
+    Set(HashSet<RespType>),
+    Attribute(Attribute),
+    Push(Vec<RespType>),
+    Hello(Hello),
+    BigInteger(BigInt),
 }
 
 impl RespType {
@@ -91,6 +176,23 @@ impl RespType {
             RespType::NullString => RespTypeRef::NullString,
             RespType::Array(x) => RespTypeRef::Array(x.iter().map(|y| y.as_referenced()).collect()),
             RespType::NullArray => RespTypeRef::NullArray,
+            RespType::Null => RespTypeRef::Null,
+            RespType::Double(x) => RespTypeRef::Double(*x),
+            RespType::Boolean(x) => RespTypeRef::Boolean(*x),
+            RespType::BlobError(x) => RespTypeRef::BlobError(x),
+            RespType::VerbatimString(x, y) => RespTypeRef::VerbatimString(x, y),
+            RespType::Map(x) => RespTypeRef::Map(
+                x.iter()
+                    .map(|(k, v)| (k.as_referenced(), v.as_referenced()))
+                    .collect(),
+            ),
+            RespType::Set(x) => RespTypeRef::Set(x.iter().map(|y| y.as_referenced()).collect()),
+            RespType::Attribute(x) => RespTypeRef::Attribute(x.as_referenced()),
+            RespType::Push(x) => RespTypeRef::Push(x.iter().map(|y| y.as_referenced()).collect()),
+            RespType::Hello(x) => RespTypeRef::Hello(x.clone()),
+            RespType::BigInteger(x) => {
+                RespTypeRef::BigInteger(Cow::from(x.to_str_radix(10).as_bytes().to_vec()))
+            }
         }
     }
 
@@ -198,6 +300,17 @@ pub enum RespTypeRefType {
     NullString,
     Array,
     NullArray,
+    Null,
+    Double,
+    Boolean,
+    BlobError,
+    VerbatimString,
+    Map,
+    Set,
+    Attribute,
+    Push,
+    Hello,
+    BigInteger,
 }
 
 #[test]

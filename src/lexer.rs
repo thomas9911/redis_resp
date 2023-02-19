@@ -66,7 +66,7 @@ impl<'a> Token<'a> {
             return (0, None);
         };
 
-        if input.len() >= 2 && &input[0..=1] == &consts::NEWLINE {
+        if input.len() >= 2 && input[0..=1] == consts::NEWLINE {
             return (2, Some(Newline));
         };
 

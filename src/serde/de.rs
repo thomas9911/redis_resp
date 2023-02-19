@@ -53,6 +53,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             Some(RespTypeRef::NullString) => self.deserialize_unit(visitor),
             Some(RespTypeRef::Integer(_)) => self.deserialize_i64(visitor),
             None => Err(Self::Error::message("Invalid".to_string())),
+            _ => todo!(),
         }
     }
 

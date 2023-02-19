@@ -23,7 +23,11 @@ pub const VERBATIM_STRING_SEPARATOR: u8 = b':';
 
 // const bytes
 pub const HELLO: [u8; 5] = [b'H', b'E', b'L', b'L', b'O'];
+pub const AUTH: [u8; 4] = [b'A', b'U', b'T', b'H'];
 pub const TRUE: [u8; 2] = [BOOLEAN, b't'];
 pub const FALSE: [u8; 2] = [BOOLEAN, b'f'];
+pub const INFINITE: [u8; 4] = [DOUBLE, b'i', b'n', b'f'];
+pub const NEG_INFINITE: [u8; 5] = [DOUBLE, b'-', b'i', b'n', b'f'];
+pub const NAN: [u8; 4] = [DOUBLE, b'n', b'a', b'n'];
 pub const STREAM_END: [u8; 2] = [STREAM, b'0'];
 pub const NEWLINE: [u8; 2] = [b'\r', b'\n'];
